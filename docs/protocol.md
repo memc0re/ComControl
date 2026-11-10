@@ -56,7 +56,7 @@ Hinweise:
 |---|---|---|
 | `0x23` feste Leistung | Lüfter, Prozent (0–100) | beobachtet (0 %, 50 %, 100 %) |
 | `0x25` Hardwarekurve | Lüfter, Fühler, 6 × Temperatur (`u16`, 1/100 °C), 6 × Drehzahl (`u16`, RPM) | beobachtet |
-| `0x28` Betriebsart setzen | `0x02`, Lüfter, Betriebsart (`0`/`1`/`2`) | Referenz, **nicht geprüft** |
+| `0x28` Betriebsart setzen | `0x02`, Lüfter, Betriebsart (`0`/`1`/`2`) | beobachtet nur für PWM auf einem bereits als PWM erkannten Lüfter (angenommen, Rücklesen über `0x20` liefert PWM, feste Leistung bleibt erhalten); DC und `0` **nicht geprüft** |
 
 Eine Schreibantwort enthält nur das Statusbyte. Der Controller bestätigt **keinen** Sollwert und bietet kein Rücklesen von Leistung oder Kurve. Ein gesendeter Befehl gilt daher nur als „übertragen“, nicht als „bestätigt“; Wirkung zeigt sich allein an der gemessenen Drehzahl.
 
