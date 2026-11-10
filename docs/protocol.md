@@ -64,13 +64,13 @@ Eine Schreibantwort enthält nur das Statusbyte. Der Controller bestätigt **kei
 
 | Beobachtung | Stand |
 |---|---|
-| Zwischen zwei Punkten interpoliert der Controller linear | beobachtet (stationär, ein Messpunkt) |
+| Zwischen zwei Punkten interpoliert der Controller linear (Abweichung bei ruhender Temperatur typisch unter 10 RPM) | beobachtet |
 | Unterhalb des ersten Punkts gilt die Drehzahl des ersten Punkts | beobachtet |
 | Oberhalb des letzten Punkts gilt die Drehzahl des letzten Punkts, keine Überschreitung | beobachtet |
 | Kurve mit weniger als 6 Punkten, aufgefüllt durch Wiederholung des letzten Punkts, wird angenommen | beobachtet |
 | Kurve läuft weiter, nachdem das schreibende Programm beendet ist | beobachtet |
 | Wechsel der Steuerart: Controller ändert die Drehzahl nicht sprunghaft, sondern rampt (ca. 10 s) | beobachtet |
-| Kurve folgt einer Temperaturänderung innerhalb des Kurvenbereichs | **nicht geprüft** |
+| Kurve folgt einer Temperaturänderung innerhalb des Kurvenbereichs in beide Richtungen; bei schneller Änderung hinkt die Drehzahl einige Sekunden nach | beobachtet |
 | Verhalten bei während des Betriebs abgezogenem Fühler | **nicht geprüft** |
 
 Auffüllung: Der Treiber verlangt streng aufsteigende Temperaturen. Wiederholte Punkte erhalten daher die Drehzahl des letzten Punkts und eine um je 0,01 °C höhere Temperatur. Die so entstehende effektive Kurve ist mit der eingegebenen funktional gleich, da oberhalb des letzten Punkts ohnehin dessen Drehzahl gilt.
