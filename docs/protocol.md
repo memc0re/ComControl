@@ -1,76 +1,76 @@
-# Commander-PRO-Protokoll (eigener Treiber)
+# Commander PRO protocol (own driver)
 
-Dieses Dokument beschreibt den Teil des HID-Protokolls des Corsair iCUE Commander PRO (USB `1b1c:0c10`), den der eigene Treiber in `backend/src/comcontrol/commander/` verwendet. Fremde Treiber (liquidctl, Linux `corsair-cpro`) dienten nur als Protokollreferenz; es wurde kein Code übernommen. Jede Angabe ist mit ihrem Nachweisstand gekennzeichnet:
+This document describes the part of the Corsair iCUE Commander PRO HID protocol (USB `1b1c:0c10`) used by the driver in `backend/src/comcontrol/commander/`. Other drivers (liquidctl, Linux `corsair-cpro`) were used only as a protocol reference; no code was copied. Every statement is marked with its verification status:
 
-- **beobachtet** – am realen Gerät mit dem Werkzeug `commander-probe` geprüft,
-- **Referenz** – nur aus Fremdquellen übernommen, am Gerät noch nicht geprüft.
+- **observed** – verified on a real device with the `commander-probe` tool,
+- **reference** – taken from third-party sources only, not yet verified on a device.
 
-Der Nachweis erfolgte an einem teilbestückten Aufbau (ein PWM-Lüfter, ein Fühler). DC-Lüfter, weitere Kanäle und Fühler sind am Gerät **nicht geprüft**.
+Verification was done on a partially populated setup (one PWM fan, one temperature sensor). DC fans, further fan channels and sensors are **not verified** on hardware.
 
 ## Transport
 
-| Eigenschaft | Wert | Stand |
+| Property | Value | Status |
 |---|---|---|
-| Schnittstelle | Linux `hidraw`, Gerät wird über den physischen USB-Pfad (z. B. `1-4.2`) aus sysfs ermittelt | beobachtet |
-| Anfrage | Output-Report, 64 Byte: Befehlsbyte, Argumente, Rest mit `0x00` aufgefüllt. Beim Schreiben auf `hidraw` wird ein führendes Report-ID-Byte `0x00` vorangestellt (65 Byte geschrieben). | beobachtet |
-| Antwort | Input-Report, 16 Byte. Byte 0 = Status, ab Byte 1 Nutzdaten | beobachtet |
-| Zuordnung | Die Antwort enthält **kein Befehlsecho**. Zuordnung erfolgt allein über die Reihenfolge: genau eine Anfrage, dann genau eine Antwort. Vor jeder Anfrage werden liegengebliebene Reports verworfen; Zugriffe müssen serialisiert sein. | beobachtet |
-| Zeitlimit | Treiber wartet höchstens 1 s auf eine Antwort, sonst Fehler | Treiberfestlegung |
+| Interface | Linux `hidraw`; the device is located in sysfs by its physical USB port path (e.g. `1-2.3`) | observed |
+| Request | Output report, 64 bytes: command byte, arguments, rest padded with `0x00`. When writing to `hidraw`, a leading report ID byte `0x00` is prepended (65 bytes written). | observed |
+| Response | Input report, 16 bytes. Byte 0 = status, payload from byte 1 | observed |
+| Matching | The response contains **no command echo**. Responses are matched to requests by order only: exactly one request, then exactly one response. Stale reports are discarded before each request; access must be serialized. | observed |
+| Timeout | The driver waits at most 1 s for a response, otherwise it reports an error | driver choice |
 
-### Statusbyte
+### Status byte
 
-| Wert | Bedeutung | Stand |
+| Value | Meaning | Status |
 |---|---|---|
-| `0x00` | OK | beobachtet |
-| `0x01` | ungültiger Befehl | Referenz |
-| `0x10` | ungültige Argumente | Referenz |
-| `0x11` | Fühler nicht angeschlossen | Referenz |
-| `0x12` | Lüfter auf diese Weise nicht steuerbar | Referenz |
+| `0x00` | OK | observed |
+| `0x01` | invalid command | reference |
+| `0x10` | invalid arguments | reference |
+| `0x11` | sensor not connected | reference |
+| `0x12` | fan cannot be controlled this way | reference |
 
-Jeder Status ungleich `0x00` ist ein Fehler. Eine Antwort mit falscher Länge ist ungültig und gilt nie als Erfolg.
+Any status other than `0x00` is an error. A response with the wrong length is invalid and is never treated as success.
 
-## Befehls-Whitelist
+## Command whitelist
 
-Alle Mehrbyte-Werte sind Big Endian. Lüfter (0–5) und Fühler (0–3) werden im Protokoll **0-basiert** übertragen; die Beschriftung am Gerät und `commander-probe` zählen ab 1. Andere Befehle (insbesondere RGB, Firmware-/Bootloader-Schreiben) kann der Treiber nicht erzeugen.
+All multi-byte values are big endian. Fans (0–5) and sensors (0–3) are **0-based** in the protocol; the device labels and `commander-probe` count from 1. The driver cannot build any other command (in particular RGB and firmware/bootloader writes).
 
-### Lesen
+### Read
 
-| Befehl | Argumente | Antwort (ab Byte 1) | Stand |
+| Command | Arguments | Response (from byte 1) | Status |
 |---|---|---|---|
-| `0x02` Firmware | – | 3 Byte: Major, Minor, Patch | beobachtet |
-| `0x06` Bootloader | – | 2 Byte: Major, Minor | beobachtet |
-| `0x10` Fühler angeschlossen | – | 4 Byte, je Fühler `1` = verbunden, `0` = nicht | beobachtet |
-| `0x11` Temperatur | Fühler | `s16`, 1/100 °C | beobachtet |
-| `0x12` Spannung | Schiene (0 = +12 V, 1 = +5 V, 2 = +3,3 V) | `u16`, mV | beobachtet (+3,3 V siehe unten) |
-| `0x20` Lüfter-Betriebsarten | – | 6 Byte: `0` = nicht verbunden, `1` = DC, `2` = PWM | beobachtet (nur PWM und „nicht verbunden“) |
-| `0x21` Drehzahl | Lüfter | `u16`, RPM | beobachtet |
+| `0x02` firmware | – | 3 bytes: major, minor, patch | observed |
+| `0x06` bootloader | – | 2 bytes: major, minor | observed |
+| `0x10` sensors connected | – | 4 bytes, per sensor `1` = connected, `0` = not | observed |
+| `0x11` temperature | sensor | `s16`, 1/100 °C | observed |
+| `0x12` voltage | rail (0 = +12 V, 1 = +5 V, 2 = +3.3 V) | `u16`, mV | observed (+3.3 V see below) |
+| `0x20` fan modes | – | 6 bytes: `0` = disconnected, `1` = DC, `2` = PWM | observed (PWM and disconnected only) |
+| `0x21` fan speed | fan | `u16`, RPM | observed |
 
-Hinweise:
+Notes:
 
-- Ein Temperaturwert von 0 beweist allein keinen fehlenden Fühler; maßgeblich ist zusätzlich `0x10`. Nicht angeschlossene Fühler und Lüfter werden vom Treiber nicht als 0 °C / 0 RPM gewertet.
-- Die +3,3-V-Schiene kann deutlich unter 3,3 V lesen (beobachtet: einige 100 mV), vermutlich weil sie am Gerät nicht beschaltet ist. Das ist kein Gerätefehler.
+- A temperature of 0 alone does not prove a missing sensor; `0x10` must be checked as well. The driver never reports disconnected sensors or fans as 0 °C / 0 RPM.
+- The +3.3 V rail can read far below 3.3 V (observed: a few hundred mV), probably because it is not wired on the device. This is not a device fault.
 
-### Schreiben
+### Write
 
-| Befehl | Argumente | Stand |
+| Command | Arguments | Status |
 |---|---|---|
-| `0x23` feste Leistung | Lüfter, Prozent (0–100) | beobachtet (0 %, 50 %, 100 %) |
-| `0x25` Hardwarekurve | Lüfter, Fühler, 6 × Temperatur (`u16`, 1/100 °C), 6 × Drehzahl (`u16`, RPM) | beobachtet |
-| `0x28` Betriebsart setzen | `0x02`, Lüfter, Betriebsart (`0`/`1`/`2`) | beobachtet nur für PWM auf einem bereits als PWM erkannten Lüfter (angenommen, Rücklesen über `0x20` liefert PWM, feste Leistung bleibt erhalten); DC und `0` **nicht geprüft** |
+| `0x23` fixed power | fan, percent (0–100) | observed (0 %, 50 %, 100 %) |
+| `0x25` hardware curve | fan, sensor, 6 × temperature (`u16`, 1/100 °C), 6 × speed (`u16`, RPM) | observed |
+| `0x28` set fan mode | `0x02`, fan, mode (`0`/`1`/`2`) | observed only for PWM on a fan already detected as PWM (accepted, read-back via `0x20` returns PWM, fixed power is retained); DC and `0` **not verified** |
 
-Eine Schreibantwort enthält nur das Statusbyte. Der Controller bestätigt **keinen** Sollwert und bietet kein Rücklesen von Leistung oder Kurve. Ein gesendeter Befehl gilt daher nur als „übertragen“, nicht als „bestätigt“; Wirkung zeigt sich allein an der gemessenen Drehzahl.
+A write response contains only the status byte. The controller does **not** confirm a target value and offers no read-back of power or curve. A sent command therefore only counts as "transmitted", not as "confirmed"; its effect shows only in the measured fan speed.
 
-## Kurvenverhalten
+## Curve behaviour
 
-| Beobachtung | Stand |
+| Observation | Status |
 |---|---|
-| Zwischen zwei Punkten interpoliert der Controller linear (Abweichung bei ruhender Temperatur typisch unter 10 RPM) | beobachtet |
-| Unterhalb des ersten Punkts gilt die Drehzahl des ersten Punkts | beobachtet |
-| Oberhalb des letzten Punkts gilt die Drehzahl des letzten Punkts, keine Überschreitung | beobachtet |
-| Kurve mit weniger als 6 Punkten, aufgefüllt durch Wiederholung des letzten Punkts, wird angenommen | beobachtet |
-| Kurve läuft weiter, nachdem das schreibende Programm beendet ist | beobachtet |
-| Wechsel der Steuerart: Controller ändert die Drehzahl nicht sprunghaft, sondern rampt (ca. 10 s) | beobachtet |
-| Kurve folgt einer Temperaturänderung innerhalb des Kurvenbereichs in beide Richtungen; bei schneller Änderung hinkt die Drehzahl einige Sekunden nach | beobachtet |
-| Verhalten bei während des Betriebs abgezogenem Fühler | **nicht geprüft** |
+| Between two points the controller interpolates linearly (deviation at steady temperature typically below 10 RPM) | observed |
+| Below the first point, the speed of the first point applies | observed |
+| Above the last point, the speed of the last point applies, no overshoot | observed |
+| A curve with fewer than 6 points, padded by repeating the last point, is accepted | observed |
+| The curve keeps running after the writing program has exited | observed |
+| Changing the control mode: the controller ramps the speed instead of jumping (approx. 10 s) | observed |
+| The curve follows a temperature change within the curve range in both directions; on fast changes the speed lags a few seconds behind | observed |
+| Behaviour when the sensor is unplugged during operation | **not verified** |
 
-Auffüllung: Der Treiber verlangt streng aufsteigende Temperaturen. Wiederholte Punkte erhalten daher die Drehzahl des letzten Punkts und eine um je 0,01 °C höhere Temperatur. Die so entstehende effektive Kurve ist mit der eingegebenen funktional gleich, da oberhalb des letzten Punkts ohnehin dessen Drehzahl gilt.
+Padding: the driver requires strictly ascending temperatures. Repeated points therefore get the speed of the last point and a temperature raised by 0.01 °C each. The resulting effective curve is functionally identical to the entered one, because the speed of the last point applies above it anyway.

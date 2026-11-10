@@ -1,66 +1,66 @@
 # ComControl
 
-Web-Oberfläche (Deutsch) zur Überwachung und Steuerung der Lüfter eines Serverschranks über einen per USB angeschlossenen **Corsair iCUE Commander PRO**.
+Web interface for monitoring and controlling the fans of a server rack through a USB-connected **Corsair iCUE Commander PRO**.
 
 > [!WARNING]
-> **Nutzung auf eigene Gefahr.** ComControl greift direkt in die Lüftersteuerung und damit in die Kühlung von Serverkomponenten ein. Fehlerhafte Einstellungen, Softwarefehler, ein Ausfall des Backends, der USB-Verbindung oder des Controllers können zu unzureichender Kühlung, Überhitzung und Hardwareschäden führen. Es gibt in dieser Version **keinen unabhängigen Wächter**, der bei einem Ausfall sicher auf volle Lüfterleistung umschaltet.
+> **Use at your own risk.** ComControl directly controls the fans and therefore the cooling of server components. Incorrect settings, software bugs, or a failure of the backend, the USB connection or the controller can lead to insufficient cooling, overheating and hardware damage. This version has **no independent watchdog** that reliably switches the fans to full power in case of a failure.
 >
-> Die Software wird **ohne jegliche Gewährleistung** bereitgestellt, insbesondere ohne Gewähr für Funktionsfähigkeit, Eignung für einen bestimmten Zweck oder für Schäden an Hardware, Daten oder sonstigem Eigentum (siehe auch Abschnitte 15 und 16 der GPLv3). Überwache Temperaturen deines Systems unabhängig von ComControl.
+> The software is provided **without any warranty**, in particular without any guarantee of correct operation or fitness for a particular purpose, and without liability for damage to hardware, data or other property (see also sections 15 and 16 of the GPLv3). Monitor your system's temperatures independently of ComControl.
 >
-> ComControl ist kein Produkt von Corsair und steht in keiner Verbindung zu Corsair.
+> ComControl is not a Corsair product and is not affiliated with Corsair.
 
-## Projektstand
+## Project status
 
-ComControl befindet sich in Entwicklung und ist **noch nicht einsatzbereit**. Es gibt noch keine Web-Oberfläche und kein Backend.
+ComControl is under development and **not ready for use**. There is no web interface and no backend yet.
 
-Vorhanden ist bisher:
+What exists so far:
 
-- eine Protokollschicht für den Commander PRO in Python (nur Standardbibliothek, direkter Zugriff über Linux `hidraw`),
-- das Diagnosewerkzeug `commander-probe` zum Lesen und testweisen Setzen von Werten,
-- eine Beschreibung des verwendeten Protokollausschnitts mit Nachweisstand: [`docs/protocol.md`](docs/protocol.md).
+- a protocol layer for the Commander PRO in Python (standard library only, direct access via Linux `hidraw`),
+- the diagnostic tool `commander-probe` for reading values and setting them for testing,
+- a description of the protocol subset in use, including its verification status: [`docs/protocol.md`](docs/protocol.md).
 
-Am realen Gerät geprüft sind bisher nur Messwerte, feste Lüfterleistung, Hardwarekurven und das Setzen der Betriebsart PWM an einem PWM-Lüfter. DC-Lüfter und Mehrkanalbetrieb sind **nicht geprüft**.
+Verified on real hardware so far: readings, fixed fan power, hardware curves and setting PWM mode on a PWM fan. DC fans and multi-channel operation are **not verified**.
 
-## Voraussetzungen
+## Requirements
 
-- Linux mit `hidraw`-Unterstützung, Python ≥ 3.11
-- Schreib-/Lesezugriff auf das `hidraw`-Gerät des Commander PRO (USB `1b1c:0c10`), z. B. über eine udev-Regel, die **nur** dieses Gerät freigibt:
+- Linux with `hidraw` support, Python ≥ 3.11
+- Read/write access to the Commander PRO's `hidraw` device (USB `1b1c:0c10`), e.g. through a udev rule that grants access to **this device only**:
 
   ```
   SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1b1c", ATTRS{idProduct}=="0c10", GROUP="plugdev", MODE="0660"
   ```
 
-- Das Kernelmodul `corsair_cpro` darf das Gerät nicht gleichzeitig verwenden (z. B. per `blacklist corsair_cpro` in `/etc/modprobe.d/`). Andere Programme, die den Controller ansprechen, müssen beendet sein.
+- The kernel module `corsair_cpro` must not use the device at the same time (e.g. `blacklist corsair_cpro` in `/etc/modprobe.d/`). Any other program talking to the controller must be stopped.
 
-## Diagnosewerkzeug
+## Diagnostic tool
 
 ```sh
 cd backend
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 
-.venv/bin/commander-probe list            # nur sysfs, öffnet kein Gerät
-.venv/bin/commander-probe info            # Firmware, Fühler, Lüfter-Betriebsarten
+.venv/bin/commander-probe list            # sysfs only, does not open any device
+.venv/bin/commander-probe info            # firmware, sensors, fan modes
 .venv/bin/commander-probe status --watch 5
 ```
 
-Lüfter und Fühler werden wie am Gerät beschriftet ab 1 gezählt. Befehle, die den Gerätezustand ändern, benötigen `--write`:
+Fans and sensors are numbered from 1, as labelled on the device. Commands that change device state require `--write`:
 
 ```sh
 .venv/bin/commander-probe --write set-percent 1 100
 .venv/bin/commander-probe --write set-curve 1 1 25:600 35:1000 45:1500
 ```
 
-Ein gesendeter Befehl wird vom Controller nicht durch Rücklesen bestätigt; maßgeblich ist die gemessene Drehzahl.
+The controller does not confirm a sent command by read-back; only the measured fan speed shows its effect.
 
-Tests (ohne Hardware, gegen einen gefälschten Transport):
+Tests (no hardware needed, run against a fake transport):
 
 ```sh
 cd backend && .venv/bin/pytest -q
 ```
 
-## Lizenz
+## License
 
-ComControl steht unter der **GNU General Public License v3.0 oder später** (GPL-3.0-or-later), siehe [`LICENSE`](LICENSE).
+ComControl is licensed under the **GNU General Public License v3.0 or later** (GPL-3.0-or-later), see [`LICENSE`](LICENSE).
 
-Der Treiber ist eine eigene Implementierung. Fremde Projekte (u. a. liquidctl und der Linux-Treiber `corsair-cpro`) dienten ausschließlich als Protokollreferenz; es wurde kein Code daraus übernommen.
+The driver is an independent implementation. Other projects (including liquidctl and the Linux driver `corsair-cpro`) were used only as a protocol reference; no code was copied from them.
