@@ -31,7 +31,7 @@ class TransportError(Exception):
 @dataclass(frozen=True)
 class DeviceEntry:
     node: str       # e.g. /dev/hidraw8 (may change, not an identity)
-    usb_path: str   # e.g. 1-4.2 (physical port path, used as identity)
+    usb_path: str   # e.g. 1-2.3 (physical port path, used as identity)
 
 
 def find_devices(sysfs: Path = _SYSFS) -> list[DeviceEntry]:

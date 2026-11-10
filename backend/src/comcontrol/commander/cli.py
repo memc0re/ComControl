@@ -72,7 +72,7 @@ def _parse_points(raw: list[str]) -> list[tuple[float, int]]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="commander-probe", description=__doc__)
-    ap.add_argument("--usb-path", help="physical USB port path, e.g. 1-4.2")
+    ap.add_argument("--usb-path", help="physical USB port path, e.g. 1-2.3")
     ap.add_argument("--write", action="store_true", help="allow state-changing commands")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list", help="list Commander PRO devices (sysfs only, no device access)")
