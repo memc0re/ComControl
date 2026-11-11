@@ -11,14 +11,15 @@ Web interface for monitoring and controlling the fans of a server rack through a
 
 ## Project status
 
-ComControl is under development and **not ready for use**. There is no web interface yet.
+ComControl is under development and **not ready for use**: the hardware acceptance test with a real controller is still outstanding.
 
 What exists so far:
 
 - a protocol layer for the Commander PRO in Python (direct access via Linux `hidraw`),
 - the diagnostic tool `commander-probe` for reading values and setting them for testing,
 - a description of the protocol subset in use, including its verification status: [`docs/protocol.md`](docs/protocol.md),
-- the backend (FastAPI): hardware adapter and simulator, 5-second polling, SQLite persistence with per-minute history, login, channel configuration, fixed power and hardware curves via the JSON API – see [`docs/backend.md`](docs/backend.md). Alarms and fail-safe reactions are not implemented yet.
+- the backend (FastAPI): hardware adapter and simulator, 5-second polling, SQLite persistence with per-minute history, login, channel configuration, fixed power and hardware curves, alarms and the latched fail-safe reaction (100 %) via the JSON API – see [`docs/backend.md`](docs/backend.md),
+- the web UI (German and English, light and dark, desktop and phone) – see [`docs/frontend.md`](docs/frontend.md).
 
 Verified on real hardware so far: readings, fixed fan power, hardware curves and setting PWM mode on a PWM fan; fixed power, hardware curve and mode setting on a single DC fan; the backend reading live values from a real controller. Several DC channels, multi-channel operation and the full population are **not verified**.
 
