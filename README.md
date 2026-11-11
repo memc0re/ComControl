@@ -19,7 +19,8 @@ What exists so far:
 - the diagnostic tool `commander-probe` for reading values and setting them for testing,
 - a description of the protocol subset in use, including its verification status: [`docs/protocol.md`](docs/protocol.md),
 - the backend (FastAPI): hardware adapter and simulator, 5-second polling, SQLite persistence with per-minute history, login, channel configuration, fixed power and hardware curves, alarms and the latched fail-safe reaction (100 %) via the JSON API – see [`docs/backend.md`](docs/backend.md),
-- the web UI (German and English, light and dark, desktop and phone) – see [`docs/frontend.md`](docs/frontend.md).
+- the web UI (German and English, light and dark, desktop and phone) – see [`docs/frontend.md`](docs/frontend.md),
+- a Docker image and Compose file without privileged mode – see [`docs/docker.md`](docs/docker.md).
 
 Verified on real hardware so far: readings, fixed fan power, hardware curves and setting PWM mode on a PWM fan; fixed power, hardware curve and mode setting on a single DC fan; the complete chain from controller to web UI (live temperature and fan speed, 5-second updates, fixed power and curve changes) and that settings survive a backend crash and are re-applied after a restart. Several DC channels, multi-channel operation and the full population are **not verified**.
 

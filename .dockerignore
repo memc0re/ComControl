@@ -1,0 +1,17 @@
+.git
+.gitea
+internal
+CLAUDE.md
+AGENTS.md
+.env
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/*.egg-info
+frontend/build
+frontend/.svelte-kit
+frontend/test-results
+frontend/playwright-report
+data
+data-*

@@ -223,3 +223,9 @@ def test_real_connector_failure_never_falls_back_to_simulation(sysfs):
     with pytest.raises(ConnectError):
         ad.connect()
     assert not ad.simulated and not ad.connected
+
+
+def test_device_directory_configurable_for_containers(sysfs, monkeypatch):
+    sysfs([("hidraw8", "1b1c:0c10", "1-4.2", "hid-generic")])
+    monkeypatch.setattr(hidraw, "_DEV", "/hostdev")
+    assert hidraw.find_devices() == [DeviceEntry("/hostdev/hidraw8", "1-4.2")]

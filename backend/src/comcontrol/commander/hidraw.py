@@ -21,6 +21,10 @@ PRODUCT_ID = 0x0C10
 DEFAULT_TIMEOUT = 1.0
 
 _SYSFS = Path("/sys/class/hidraw")
+# Directory holding the hidraw device nodes.  A container may see the host's
+# /dev under another path (bind mount), so that reconnects with a new
+# hidrawN number stay visible without restarting the container.
+_DEV = os.environ.get("COMCONTROL_DEV_DIR", "/dev")
 _HID_ID = re.compile(r"^HID_ID=[0-9A-Fa-f]+:([0-9A-Fa-f]+):([0-9A-Fa-f]+)$", re.M)
 _USB_PORT = re.compile(r"^\d+-\d+(\.\d+)*$")
 
@@ -49,7 +53,7 @@ def find_devices(sysfs: Path = _SYSFS) -> list[DeviceEntry]:
             continue
         ports = [p for p in parts if _USB_PORT.match(p)]
         if ports:
-            found.append(DeviceEntry(f"/dev/{entry.name}", ports[-1]))
+            found.append(DeviceEntry(f"{_DEV}/{entry.name}", ports[-1]))
     return found
 
 
