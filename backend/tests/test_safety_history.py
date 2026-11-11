@@ -319,3 +319,24 @@ def test_events_logged(env):
     kinds = [e["kind"] for e in env.client.get("/api/v1/events").json()["events"]]
     for k in ("backend_started", "device_connected", "fan_activated", "fan_control_applied"):
         assert k in kinds
+
+
+def test_simulator_control_only_in_simulation(env, tmp_path, monkeypatch):
+    env.login()
+    r = env.client.post("/api/v1/simulator", headers=env.h,
+                        json={"sensor_temperatures": {"temp1": 50}, "fans_blocked": {"fan1": True}})
+    assert r.status_code == 204
+    assert env.sim.sensors[0].temperature == 50 and env.sim.fans[0].blocked
+    # real hardware mode: the endpoint does not exist
+    from comcontrol.commander import hidraw
+
+    monkeypatch.setattr(hidraw, "find_devices", lambda *a, **k: [])
+    app, rt, db = build(test_settings(tmp_path / "real", simulate=None))
+    rt._loop = _noop
+    with TestClient(app) as client:
+        client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin"})
+        csrf = client.get("/api/v1/auth/session").json()["csrf_token"]
+        r = client.post("/api/v1/simulator", headers={"X-CSRF-Token": csrf}, json={"unplugged": True})
+        assert r.status_code == 404
+        assert client.get("/api/v1/state").json()["simulated"] is False
+    db.close()

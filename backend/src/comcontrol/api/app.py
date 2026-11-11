@@ -481,10 +481,32 @@ def create_app(rt: Runtime, auth: AuthService, limiter: LoginRateLimiter, *, sta
         code = {404: "not_found", 405: "method_not_allowed"}.get(exc.status_code, "http_error")
         return _error(exc.status_code, code)
 
+    if rt.simulated:
+        app.include_router(_simulator_router())
     app.include_router(api)
     if settings.static_dir is not None:
         _mount_static(app, settings.static_dir)
     return app
+
+
+def _simulator_router() -> APIRouter:
+    """Fault injection for development and UI tests; exists only in simulation mode."""
+    router = APIRouter(prefix="/api/v1/simulator", dependencies=[Depends(check_origin)])
+
+    @router.post("", status_code=204, include_in_schema=False)
+    def control_simulator(body: m.SimulatorControl, _: SessionDep, rt: RuntimeDep) -> Response:
+        sim = rt.adapter.connector.sim  # type: ignore[attr-defined]
+        for sid, temp in body.sensor_temperatures.items():
+            sim.sensors[_sensor_port(sid) - 1].temperature = temp
+        for sid, connected in body.sensors_connected.items():
+            sim.sensors[_sensor_port(sid) - 1].connected = connected
+        for fid, blocked in body.fans_blocked.items():
+            sim.fans[_fan_port(fid) - 1].blocked = blocked
+        if body.unplugged is not None:
+            sim.faults.unplugged = body.unplugged
+        return Response(status_code=204)
+
+    return router
 
 
 def _mount_static(app: FastAPI, static_dir: Path) -> None:

@@ -286,3 +286,10 @@ class Event(BaseModel):
 
 class EventList(BaseModel):
     events: list[Event]
+
+
+class SimulatorControl(Strict):
+    sensor_temperatures: dict[str, Annotated[float, Field(ge=-20, le=150)]] = {}
+    sensors_connected: dict[str, bool] = {}
+    fans_blocked: dict[str, bool] = {}
+    unplugged: bool | None = None
