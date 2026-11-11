@@ -48,6 +48,7 @@ All multi-byte values are big endian. Fans (0–5) and sensors (0–3) are **0-b
 Notes:
 
 - A temperature of 0 alone does not prove a missing sensor; `0x10` must be checked as well. The driver never reports disconnected sensors or fans as 0 °C / 0 RPM.
+- `0x20` does not prove that a fan is physically present: after a DC fan had been used on a channel (and its mode set to DC explicitly) and was then removed, the channel kept reporting DC with a valid speed of 0 RPM (observed). An expected fan that disappears can therefore look like a stalled fan.
 - A DC fan at low fixed power can stall (observed: 0 RPM at 35 % and below, running at 50 %), so 0 RPM at a low target is not necessarily a fault.
 - The +3.3 V rail can read far below 3.3 V (observed: a few hundred mV), probably because it is not wired on the device. This is not a device fault.
 

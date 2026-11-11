@@ -11,15 +11,16 @@ Web interface for monitoring and controlling the fans of a server rack through a
 
 ## Project status
 
-ComControl is under development and **not ready for use**. There is no web interface and no backend yet.
+ComControl is under development and **not ready for use**. There is no web interface yet.
 
 What exists so far:
 
-- a protocol layer for the Commander PRO in Python (standard library only, direct access via Linux `hidraw`),
+- a protocol layer for the Commander PRO in Python (direct access via Linux `hidraw`),
 - the diagnostic tool `commander-probe` for reading values and setting them for testing,
-- a description of the protocol subset in use, including its verification status: [`docs/protocol.md`](docs/protocol.md).
+- a description of the protocol subset in use, including its verification status: [`docs/protocol.md`](docs/protocol.md),
+- the backend (FastAPI): hardware adapter and simulator, 5-second polling, SQLite persistence with per-minute history, login, channel configuration, fixed power and hardware curves via the JSON API – see [`docs/backend.md`](docs/backend.md). Alarms and fail-safe reactions are not implemented yet.
 
-Verified on real hardware so far: readings, fixed fan power, hardware curves and setting PWM mode on a PWM fan. DC fans and multi-channel operation are **not verified**.
+Verified on real hardware so far: readings, fixed fan power, hardware curves and setting PWM mode on a PWM fan; fixed power, hardware curve and mode setting on a single DC fan; the backend reading live values from a real controller. Several DC channels, multi-channel operation and the full population are **not verified**.
 
 ## Requirements
 
@@ -37,7 +38,8 @@ Verified on real hardware so far: readings, fixed fan power, hardware curves and
 ```sh
 cd backend
 python3 -m venv .venv
-.venv/bin/pip install -e '.[dev]'
+.venv/bin/pip install --require-hashes -r requirements-dev.lock
+.venv/bin/pip install --no-deps -e .
 
 .venv/bin/commander-probe list            # sysfs only, does not open any device
 .venv/bin/commander-probe info            # firmware, sensors, fan modes
@@ -53,7 +55,7 @@ Fans and sensors are numbered from 1, as labelled on the device. Commands that c
 
 The controller does not confirm a sent command by read-back; only the measured fan speed shows its effect.
 
-Tests (no hardware needed, run against a fake transport):
+Tests (no hardware needed; they use a fake transport, the simulator and temporary databases):
 
 ```sh
 cd backend && .venv/bin/pytest -q
