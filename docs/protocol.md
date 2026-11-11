@@ -42,12 +42,13 @@ All multi-byte values are big endian. Fans (0–5) and sensors (0–3) are **0-b
 | `0x10` sensors connected | – | 4 bytes, per sensor `1` = connected, `0` = not | observed |
 | `0x11` temperature | sensor | `s16`, 1/100 °C | observed |
 | `0x12` voltage | rail (0 = +12 V, 1 = +5 V, 2 = +3.3 V) | `u16`, mV | observed (+3.3 V see below) |
-| `0x20` fan modes | – | 6 bytes: `0` = disconnected, `1` = DC, `2` = PWM | observed (PWM and disconnected only) |
+| `0x20` fan modes | – | 6 bytes: `0` = disconnected, `1` = DC, `2` = PWM | observed (PWM, DC and disconnected; value `3` after mode `0`, see below) |
 | `0x21` fan speed | fan | `u16`, RPM | observed |
 
 Notes:
 
 - A temperature of 0 alone does not prove a missing sensor; `0x10` must be checked as well. The driver never reports disconnected sensors or fans as 0 °C / 0 RPM.
+- A DC fan at low fixed power can stall (observed: 0 RPM at 35 % and below, running at 50 %), so 0 RPM at a low target is not necessarily a fault.
 - The +3.3 V rail can read far below 3.3 V (observed: a few hundred mV), probably because it is not wired on the device. This is not a device fault.
 
 ### Write
@@ -56,7 +57,7 @@ Notes:
 |---|---|---|
 | `0x23` fixed power | fan, percent (0–100) | observed (0 %, 50 %, 100 %) |
 | `0x25` hardware curve | fan, sensor, 6 × temperature (`u16`, 1/100 °C), 6 × speed (`u16`, RPM) | observed |
-| `0x28` set fan mode | `0x02`, fan, mode (`0`/`1`/`2`) | observed only for PWM on a fan already detected as PWM (accepted, read-back via `0x20` returns PWM, fixed power is retained); DC and `0` **not verified** |
+| `0x28` set fan mode | `0x02`, fan, mode (`0`/`1`/`2`) | observed: PWM on a PWM fan and DC on a DC fan (accepted, read-back via `0x20` returns the mode, fixed power is retained); mode `0` (off) accepted, but `0x20` then reads `3` (undocumented) and the fan no longer reports a speed. Restored by setting DC again. Changing a fan to a mode it was not detected as is **not verified** |
 
 A write response contains only the status byte. The controller does **not** confirm a target value and offers no read-back of power or curve. A sent command therefore only counts as "transmitted", not as "confirmed"; its effect shows only in the measured fan speed.
 
