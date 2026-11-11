@@ -69,6 +69,7 @@ A write response contains only the status byte. The controller does **not** conf
 | Below the first point, the speed of the first point applies | observed |
 | Above the last point, the speed of the last point applies, no overshoot | observed |
 | A curve with fewer than 6 points, padded by repeating the last point, is accepted | observed |
+| On a DC fan (Fan 2) the curve is executed as well; measured RPM matched the curve value at constant temperature | observed |
 | The curve keeps running after the writing program has exited | observed |
 | Changing the control mode: the controller ramps the speed instead of jumping (approx. 10 s) | observed |
 | The curve follows a temperature change within the curve range in both directions; on fast changes the speed lags a few seconds behind | observed |
