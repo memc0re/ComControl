@@ -4,17 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "comcontrol"
-version = "0.0.1"
+version = "0.1.0"
 description = "ComControl backend (Corsair Commander PRO fan control)"
 requires-python = ">=3.11"
 license = "GPL-3.0-or-later"
-dependencies = []
+# Exact versions are pinned in requirements.lock / requirements-dev.lock.
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "argon2-cffi>=23.1",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "httpx2>=2.0"]
 
 [project.scripts]
 commander-probe = "comcontrol.commander.cli:main"
+comcontrol-server = "comcontrol.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
