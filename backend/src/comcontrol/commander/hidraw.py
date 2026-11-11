@@ -6,6 +6,7 @@ Only the Commander PRO (USB 1b1c:0c10) is ever opened.  Other Corsair devices
 
 from __future__ import annotations
 
+import fcntl
 import os
 import re
 import select
@@ -52,8 +53,33 @@ def find_devices(sysfs: Path = _SYSFS) -> list[DeviceEntry]:
     return found
 
 
+def kernel_driver(entry: DeviceEntry, sysfs: Path = _SYSFS) -> str | None:
+    """Name of the kernel HID driver bound to the device (sysfs only).
+
+    `hid-generic` is expected.  `corsair-cpro` means the hwmon driver talks to
+    the same device and would interleave its own requests with ours.
+    """
+    link = sysfs / Path(entry.node).name / "device" / "driver"
+    try:
+        return link.resolve(strict=True).name
+    except OSError:
+        return None
+
+
+class DeviceBusyError(TransportError):
+    """Another process holds the device lock (e.g. a second backend or the probe tool)."""
+
+
+class PermissionDeniedError(TransportError):
+    """The hidraw node exists but may not be opened by this user."""
+
+
 class HidrawTransport:
-    """One exchange = write one output report, read one input report."""
+    """One exchange = write one output report, read one input report.
+
+    The open node is locked with flock(LOCK_EX) so that cooperating processes
+    (the backend and `commander-probe`) never interleave requests.
+    """
 
     def __init__(self, entry: DeviceEntry, timeout: float = DEFAULT_TIMEOUT) -> None:
         # Re-verify identity right before opening: the node number can change.
@@ -63,8 +89,16 @@ class HidrawTransport:
         self.timeout = timeout
         try:
             self._fd: int | None = os.open(entry.node, os.O_RDWR | os.O_NONBLOCK)
+        except PermissionError as exc:
+            raise PermissionDeniedError(f"cannot open {entry.node}: {exc.strerror}") from exc
         except OSError as exc:
             raise TransportError(f"cannot open {entry.node}: {exc.strerror}") from exc
+        try:
+            fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            os.close(self._fd)
+            self._fd = None
+            raise DeviceBusyError(f"{entry.node} is in use by another process") from exc
 
     def close(self) -> None:
         if self._fd is not None:

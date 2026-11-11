@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import Protocol
 
@@ -11,6 +12,29 @@ from .protocol import Command, FanMode
 
 class Transport(Protocol):
     def exchange(self, frame: bytes) -> bytes: ...
+
+
+_raw_log = logging.getLogger("comcontrol.commander.raw")
+
+
+class LoggingTransport:
+    """Diagnostic wrapper: logs raw request/response bytes at DEBUG level.
+
+    Frames carry only commands and measurements, never credentials.
+    """
+
+    def __init__(self, inner: Transport) -> None:
+        self.inner = inner
+
+    def exchange(self, frame: bytes) -> bytes:
+        _raw_log.debug("tx %s", frame.rstrip(b"\x00").hex(" ") or "00")
+        try:
+            response = self.inner.exchange(frame)
+        except Exception as exc:
+            _raw_log.debug("rx error: %s", exc)
+            raise
+        _raw_log.debug("rx %s", response.hex(" "))
+        return response
 
 
 class CommanderPro:
