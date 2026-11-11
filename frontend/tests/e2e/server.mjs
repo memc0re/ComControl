@@ -1,5 +1,6 @@
-// Starts the backend in simulation mode with a fresh data directory and the
-// built UI for the end-to-end tests.
+// Starts the backend with a fresh data directory and the built UI for the
+// end-to-end tests: simulation mode by default, the real controller only if
+// COMCONTROL_HW_USB_PATH is set (hardware acceptance, playwright.hardware.config.ts).
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,10 +11,20 @@ const root = resolve(import.meta.dirname, '../..');
 const dataDir = mkdtempSync(join(tmpdir(), 'comcontrol-e2e-'));
 const server = resolve(root, '../backend/.venv/bin/comcontrol-server');
 
+// Real hardware only when explicitly selected (hardware acceptance config).
+const hwPath = process.env.COMCONTROL_HW_USB_PATH;
+const mode = hwPath ? [] : ['--simulate', 'gaps'];
+const env = { ...process.env, COMCONTROL_STATIC_DIR: resolve(root, 'build') };
+if (hwPath) {
+	env.COMCONTROL_USB_PATH = hwPath;
+	delete env.COMCONTROL_SIMULATE;
+}
+else delete env.COMCONTROL_USB_PATH;
+
 const child = spawn(
 	server,
-	['--simulate', 'gaps', '--data-dir', dataDir, '--port', port, '--host', '127.0.0.1', '--log-level', 'warning'],
-	{ stdio: 'inherit', env: { ...process.env, COMCONTROL_STATIC_DIR: resolve(root, 'build') } }
+	[...mode, '--data-dir', dataDir, '--port', port, '--host', '127.0.0.1', '--log-level', 'warning'],
+	{ stdio: 'inherit', env }
 );
 
 const cleanup = () => {

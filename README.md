@@ -11,7 +11,7 @@ Web interface for monitoring and controlling the fans of a server rack through a
 
 ## Project status
 
-ComControl is under development and **not ready for use**: the hardware acceptance test with a real controller is still outstanding.
+ComControl is under development and **not ready for production use**. The automated hardware acceptance test passed on a partially populated setup (one PWM fan, one sensor); manual checks such as a controlled temperature change, USB reconnection, sensor failure and fan stall on real hardware are still outstanding.
 
 What exists so far:
 
@@ -21,7 +21,7 @@ What exists so far:
 - the backend (FastAPI): hardware adapter and simulator, 5-second polling, SQLite persistence with per-minute history, login, channel configuration, fixed power and hardware curves, alarms and the latched fail-safe reaction (100 %) via the JSON API – see [`docs/backend.md`](docs/backend.md),
 - the web UI (German and English, light and dark, desktop and phone) – see [`docs/frontend.md`](docs/frontend.md).
 
-Verified on real hardware so far: readings, fixed fan power, hardware curves and setting PWM mode on a PWM fan; fixed power, hardware curve and mode setting on a single DC fan; the backend reading live values from a real controller. Several DC channels, multi-channel operation and the full population are **not verified**.
+Verified on real hardware so far: readings, fixed fan power, hardware curves and setting PWM mode on a PWM fan; fixed power, hardware curve and mode setting on a single DC fan; the complete chain from controller to web UI (live temperature and fan speed, 5-second updates, fixed power and curve changes) and that settings survive a backend crash and are re-applied after a restart. Several DC channels, multi-channel operation and the full population are **not verified**.
 
 ## Requirements
 

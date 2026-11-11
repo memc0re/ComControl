@@ -40,3 +40,15 @@ These tests never use real hardware. They do not replace the hardware acceptance
 - All texts live in `src/lib/i18n/en.ts` and `src/lib/i18n/de.ts`; both must be complete (type check plus `tests/unit/i18n.test.ts`). The API returns error codes; the UI translates them.
 - States are always shown with text and an icon, never by colour alone.
 - Only the language and colour scheme are stored in the browser (`localStorage`); credentials and session tokens are not.
+
+## Hardware acceptance test
+
+`npm run test:hardware` runs `tests/hardware/acceptance.hw.ts` against the **real** controller. It must be selected explicitly with the controller's USB port path and uses a fresh temporary database:
+
+```sh
+COMCONTROL_HW_USB_PATH=1-2.3 npm run test:hardware   # optional: COMCONTROL_HW_MAX_RPM=1500
+```
+
+It expects a fan on fan connector 1 and a sensor on temperature connector 1. It checks that temperature and a fan speed above 0 RPM are visible in the UI at the same time, not simulated, updated every 5 seconds, and that fixed power and a hardware curve change the measured speed. It writes fixed power and a curve to fan 1 and restores 100 % fixed power at the end. Observations are written to `test-results/hardware/observations.json`.
+
+Steps that need physical action (warming the sensor, unplugging USB or the sensor, blocking a fan) are not automated and must be checked by hand.
