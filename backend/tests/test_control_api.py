@@ -301,7 +301,9 @@ def test_reconnect_requests_full_power_first(env):
     assert env.sim.fans[0].percent == 100
     # the stored profile is unchanged, the last command shows the fail-safe
     assert env.client.get("/api/v1/config").json()["fans"][0]["percent"] == 30
-    assert fan(env.state(), "fan1")["last_command"]["command"]["reason"] == "reconnect"
+    f1 = fan(env.state(), "fan1")
+    assert f1["last_command"]["command"]["reason"] == "failsafe"
+    assert f1["failsafe"]["reason"] == "reconnect" and f1["failsafe"]["delivered"] is True
 
 
 def test_stored_settings_reapplied_after_restart(tmp_path):

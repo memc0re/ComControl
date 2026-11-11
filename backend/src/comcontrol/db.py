@@ -84,6 +84,30 @@ MIGRATIONS: list[tuple[int, str]] = [
         INSERT INTO sensors (port) VALUES (1), (2), (3), (4);
         """,
     ),
+    (
+        2,
+        """
+        CREATE TABLE alarms (
+            id INTEGER PRIMARY KEY,
+            type TEXT NOT NULL,
+            source TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            ended_at TEXT,
+            acknowledged_at TEXT,
+            details TEXT NOT NULL DEFAULT '{}'
+        );
+        CREATE UNIQUE INDEX alarms_one_active ON alarms (type, source) WHERE ended_at IS NULL;
+        CREATE INDEX alarms_started ON alarms (started_at);
+        CREATE TABLE failsafe (
+            port INTEGER PRIMARY KEY CHECK (port BETWEEN 1 AND 6),
+            reason TEXT NOT NULL,
+            source TEXT NOT NULL,
+            since TEXT NOT NULL,
+            delivered INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT
+        );
+        """,
+    ),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1][0]

@@ -26,6 +26,7 @@ from .hardware.adapter import (
 )
 from .hardware.worker import HardwareTimeout, HardwareWorker
 from .live import LiveState, MinuteAggregator, purge_history, source_values
+from .safety import Safety
 from .settings import Settings
 
 log = logging.getLogger("comcontrol.runtime")
@@ -83,6 +84,7 @@ class Runtime:
         self.config_lock = asyncio.Lock()
         self.mono = mono
         self.wall = wall
+        self.safety = Safety(self)
         self._task: asyncio.Task | None = None
         self._last_purge = 0.0
 
@@ -131,17 +133,23 @@ class Runtime:
         timeout = self.settings.hardware_timeout
         if not self.adapter.connected:
             if not await self._connect():
+                await self.safety.evaluate()
                 return
             first = self.connection.connects == 1
             if not first:
-                # After a reconnect: request 100 % first, then check.
-                await self._full_power_expected("reconnect")
+                # After a reconnect: request 100 % first (latched), then check.
+                expected = {f.port: ("reconnect", "device") for f in self.store.fans() if f.usage == "expected"}
+                await self.safety.latch(expected)
+                await self.safety.retry_undelivered()
             if not await self._poll(timeout):
+                await self.safety.evaluate()
                 return
             if first:
                 await self._reapply_stored()
+            await self.safety.evaluate()
             return
         await self._poll(timeout)
+        await self.safety.evaluate()
         now = time.time()
         if now - self._last_purge > 3600:
             self._last_purge = now
@@ -169,6 +177,7 @@ class Runtime:
         if c.state == "connected":
             self.db.add_event("device_disconnected", error=code)
             log.warning("controller connection lost: %s", message)
+            self.safety.mark_undelivered()
         elif changed:
             log.warning("controller not available: %s (%s)", message, code)
         c.state, c.error_code, c.error_message, c.error_details = "disconnected", code, message, details
@@ -218,12 +227,6 @@ class Runtime:
             log.warning("fan %d: sending failed (%s, uncertain=%s)", port, outcome.error, outcome.uncertain)
         return outcome
 
-    async def _full_power_expected(self, reason: str) -> None:
-        for fan in self.store.fans():
-            if fan.usage == "expected":
-                await self._send(fan.port, mode=None, percent=100, reason=reason)
-        self.db.add_event("full_power_requested", reason=reason)
-
     def _curve_for(self, fan: FanConfig) -> list[tuple[float, int]]:
         if fan.curve_sensor is None or fan.curve_points is None:
             raise ControlError("curve_missing")
@@ -252,8 +255,12 @@ class Runtime:
     async def _reapply_stored(self) -> None:
         """Regular start: re-apply valid stored settings after checking population."""
         async with self.config_lock:
+            latched = self.safety.latches()
+            if latched:
+                # A latched fail-safe survives restarts: 100 % instead of the profile.
+                await self.safety.deliver(sorted(latched))
             for fan in self.store.fans():
-                if fan.usage != "expected":
+                if fan.usage != "expected" or fan.port in latched:
                     continue
                 if not self._fan_detected(fan.port):
                     log.warning("fan %d expected but not detected; settings not re-applied", fan.port)
@@ -290,6 +297,8 @@ class Runtime:
                 raise RevisionConflict(self.store.revision())
             if current.usage != "expected":
                 raise ControlError("fan_not_expected")
+            if port in self.safety.latches():
+                raise ControlError("failsafe_active", status=409)
             if control_type == "fixed":
                 if percent is None:
                     raise ControlError("percent_missing")
@@ -332,6 +341,8 @@ class Runtime:
                     raise ControlError("curve_conflicts_max_rpm", reason=exc.code) from exc
             rev = self.store.save_fan(new, revision)
             outcome = None
+            if usage == "unused":
+                self.safety.drop_latch(port)
             if activating:
                 self.db.add_event("fan_activated", fan=new.id)
                 if self.adapter.connected and self._fan_detected(port):
@@ -353,6 +364,10 @@ class Runtime:
                     raise ControlError("sensor_in_use_by_curve", fans=users)
             new = replace(current, name=name, usage=usage, alarm_max_c=alarm_max_c)
             return self.store.save_sensor(new, revision), new
+
+    async def release_failsafe(self) -> tuple[list[int], list[int], list[int]]:
+        async with self.config_lock:
+            return await self.safety.release()
 
     async def assign_device(self, usb_path: str, revision: int) -> int:
         """Explicit (re)assignment of the controller by USB port path."""

@@ -150,4 +150,8 @@ def purge_history(db: Database, now: datetime, retention_days: int) -> int:
     with db.tx() as c:
         n = c.execute("DELETE FROM measurements_minute WHERE minute < ?", (cutoff,)).rowcount
         n += c.execute("DELETE FROM events WHERE at < ?", (cutoff_iso,)).rowcount
+        # active alarms are kept regardless of age
+        n += c.execute(
+            "DELETE FROM alarms WHERE ended_at IS NOT NULL AND ended_at < ?", (cutoff_iso,)
+        ).rowcount
     return n

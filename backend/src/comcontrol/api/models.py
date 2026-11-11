@@ -107,6 +107,14 @@ class LastCommand(BaseModel):
     error: str | None
 
 
+class FailsafeState(BaseModel):
+    reason: str
+    source: str
+    since: str
+    delivered: bool
+    last_error: str | None
+
+
 class FanState(BaseModel):
     id: str
     port: int
@@ -117,6 +125,7 @@ class FanState(BaseModel):
     detected_mode_raw: int | None
     rpm: Measurement
     last_command: LastCommand | None
+    failsafe: FailsafeState | None
 
 
 class RailState(BaseModel):
@@ -130,6 +139,8 @@ class LiveStateResponse(BaseModel):
     connection_error: str | None
     data_age_s: float | None
     stale_after_s: float
+    active_alarms: int
+    unacknowledged_alarms: int
     sensors: list[SensorState]
     fans: list[FanState]
     rails: list[RailState]
@@ -220,3 +231,58 @@ class CurveCheck(Strict):
 
 class CurveCheckResponse(BaseModel):
     effective_curve: list[CurvePoint]
+
+
+# --- alarms, fail-safe, history, events ------------------------------------------
+class Alarm(BaseModel):
+    id: int
+    type: Literal["over_temperature", "sensor_failure", "fan_stall", "fan_missing", "device_error"]
+    source: str
+    started_at: str
+    ended_at: str | None
+    acknowledged_at: str | None
+    active: bool
+    details: dict
+
+
+class AlarmList(BaseModel):
+    alarms: list[Alarm]
+
+
+class FailsafeRelease(BaseModel):
+    released: list[str]
+    blocked: list[str]
+    failed: list[str]
+
+
+class HistoryPoint(BaseModel):
+    t: str
+    avg: float
+    min: float
+    max: float
+    count: int
+
+
+class HistorySeries(BaseModel):
+    source: str
+    unit: str
+    points: list[HistoryPoint]
+
+
+class HistoryResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    from_: str = Field(alias="from")
+    to: str
+    bucket_s: int
+    series: list[HistorySeries]
+
+
+class Event(BaseModel):
+    id: int
+    at: str
+    kind: str
+    details: dict
+
+
+class EventList(BaseModel):
+    events: list[Event]

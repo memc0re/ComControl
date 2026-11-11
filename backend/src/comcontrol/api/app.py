@@ -3,19 +3,21 @@
 from __future__ import annotations
 
 import hmac
+import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, FastAPI, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from .. import history
 from ..auth import AuthService, LoginRateLimiter, PasswordPolicyError, Session
 from ..config_store import FanConfig, RevisionConflict, SensorConfig
 from ..curves import CurveError, effective_curve
@@ -272,18 +274,27 @@ def state(_: SessionDep, rt: RuntimeDep) -> m.LiveStateResponse:
             detected=r.present, temperature=meas, alarm_max_c=cfg.alarm_max_c,
         ))
     commands = rt.store.last_commands()
+    latches = rt.safety.latches()
     fans = []
     for cfg in rt.store.fans():
         r = live.fans[cfg.port - 1]
         meas = _measurement(rt, r, "rpm")
         cmd = commands.get(cfg.port)
+        latch = latches.get(cfg.port)
         fans.append(m.FanState(
             id=cfg.id, port=cfg.port, name=cfg.name, usage=cfg.usage,  # type: ignore[arg-type]
             status=_channel_status(cfg.usage, meas.status),  # type: ignore[arg-type]
             detected_mode=live.fan_modes[cfg.port - 1],  # type: ignore[arg-type]
             detected_mode_raw=live.fan_modes_raw[cfg.port - 1],
             rpm=meas, last_command=m.LastCommand(**cmd) if cmd else None,
+            failsafe=m.FailsafeState(
+                reason=latch.reason, source=latch.source, since=latch.since,
+                delivered=latch.delivered, last_error=latch.last_error,
+            ) if latch else None,
         ))
+    counts = rt.db.one(
+        "SELECT COUNT(*) AS active, SUM(acknowledged_at IS NULL) AS unack FROM alarms WHERE ended_at IS NULL"
+    )
     rails = [
         m.RailState(id=f"rail_{name}", measurement=_measurement(rt, live.rails[i], "V"))
         for i, name in enumerate(("12v", "5v", "3v3"))
@@ -293,7 +304,9 @@ def state(_: SessionDep, rt: RuntimeDep) -> m.LiveStateResponse:
         simulated=rt.simulated, connection=rt.connection.state,  # type: ignore[arg-type]
         connection_error=rt.connection.error_code,
         data_age_s=round(age, 1) if age is not None else None,
-        stale_after_s=rt.settings.stale_after, sensors=sensors, fans=fans, rails=rails,
+        stale_after_s=rt.settings.stale_after,
+        active_alarms=counts["active"] or 0, unacknowledged_alarms=counts["unack"] or 0,
+        sensors=sensors, fans=fans, rails=rails,
     )
 
 
@@ -348,6 +361,70 @@ def check_curve(body: m.CurveCheck, _: SessionDep) -> m.CurveCheckResponse:
     except CurveError as exc:
         raise ApiError(422, exc.code, **exc.details) from exc
     return m.CurveCheckResponse(effective_curve=_points(eff) or [])
+
+
+def _alarm(row) -> m.Alarm:
+    return m.Alarm(
+        id=row["id"], type=row["type"], source=row["source"], started_at=row["started_at"],
+        ended_at=row["ended_at"], acknowledged_at=row["acknowledged_at"],
+        active=row["ended_at"] is None, details=json.loads(row["details"]),
+    )
+
+
+@api.get("/alarms", response_model=m.AlarmList)
+def alarms(
+    _: SessionDep, rt: RuntimeDep,
+    state: Literal["active", "all"] = "active",
+    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+) -> m.AlarmList:
+    where = "WHERE ended_at IS NULL" if state == "active" else ""
+    rows = rt.db.query(f"SELECT * FROM alarms {where} ORDER BY started_at DESC, id DESC LIMIT ?", (limit,))
+    return m.AlarmList(alarms=[_alarm(r) for r in rows])
+
+
+@api.post("/alarms/{alarm_id}/acknowledge", response_model=m.Alarm)
+def acknowledge_alarm(alarm_id: int, _: SessionDep, rt: RuntimeDep) -> m.Alarm:
+    if not rt.safety.acknowledge(alarm_id):
+        raise ApiError(404, "alarm_not_found")
+    return _alarm(rt.db.one("SELECT * FROM alarms WHERE id = ?", (alarm_id,)))
+
+
+@api.post("/failsafe/release", response_model=m.FailsafeRelease)
+async def release_failsafe(_: SessionDep, rt: RuntimeDep) -> m.FailsafeRelease:
+    """Explicit return to the configured profiles, only where the cause has ended."""
+    released, blocked, failed = await rt.release_failsafe()
+    body = m.FailsafeRelease(
+        released=[f"fan{p}" for p in released], blocked=[f"fan{p}" for p in blocked],
+        failed=[f"fan{p}" for p in failed],
+    )
+    if not released and (blocked or failed):
+        code = "failsafe_cause_active" if blocked else "failsafe_release_failed"
+        raise ApiError(409, code, blocked=body.blocked, failed=body.failed)
+    return body
+
+
+@api.get("/history", response_model=m.HistoryResponse)
+def get_history(
+    _: SessionDep, rt: RuntimeDep,
+    sources: Annotated[str, Query(max_length=200)],
+    from_: Annotated[datetime | None, Query(alias="from")] = None,
+    to: datetime | None = None,
+    max_points: Annotated[int, Query(ge=1, le=history.MAX_POINTS)] = 600,
+) -> dict:
+    end = to or datetime.now(UTC)
+    start = from_ or end - timedelta(hours=24)
+    try:
+        return history.query(rt.db, [s.strip() for s in sources.split(",") if s.strip()], start, end, max_points)
+    except history.HistoryError as exc:
+        raise ApiError(422, exc.code, **exc.details) from exc
+
+
+@api.get("/events", response_model=m.EventList)
+def events(_: SessionDep, rt: RuntimeDep, limit: Annotated[int, Query(ge=1, le=1000)] = 100) -> m.EventList:
+    rows = rt.db.query("SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,))
+    return m.EventList(events=[
+        m.Event(id=r["id"], at=r["at"], kind=r["kind"], details=json.loads(r["details"])) for r in rows
+    ])
 
 
 @api.api_route("/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)

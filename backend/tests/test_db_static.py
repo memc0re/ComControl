@@ -36,7 +36,7 @@ def test_failed_migration_rolls_back(tmp_path, monkeypatch):
     monkeypatch.setattr(db_mod, "SCHEMA_VERSION", 99)
     with pytest.raises(Exception):
         db.migrate()
-    assert db.version == 1
+    assert db.version == db_mod.MIGRATIONS[-2][0]
     assert not db.query("SELECT name FROM sqlite_master WHERE name = 't'")
     db.close()
 

@@ -48,6 +48,8 @@ class Env:
     extra: dict = field(default_factory=dict)
 
     def tick(self) -> None:
+        """One poll cycle, 5 s after the previous one (like the real loop)."""
+        self.clock.advance(5)
         self.client.portal.call(self.rt.tick)  # type: ignore[union-attr]
 
     def login(self, password: str = "admin") -> dict:
