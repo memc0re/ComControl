@@ -11,6 +11,10 @@
 	import { app, POLL_MS } from '#lib/app.svelte.ts';
 	import { i18n, t, type MessageKey } from '#lib/i18n/index.svelte.ts';
 
+	// The +3.3 V rail is not wired on the controller (reads a few hundred mV);
+	// it is hidden in the overview but still recorded in the history.
+	const HIDDEN_RAILS = new Set(['rail_3v3']);
+
 	let config = $state<Config | null>(null);
 	let device = $state<DeviceInfo | null>(null);
 	let error = $state<unknown>(null);
@@ -89,7 +93,7 @@
 			<Card.Header><Card.Title>{t('dash.rails')}</Card.Title></Card.Header>
 			<Card.Content>
 				<dl class="grid grid-cols-[auto_1fr] gap-x-3 text-sm">
-					{#each live.rails as rail (rail.id)}
+					{#each live.rails.filter((r) => !HIDDEN_RAILS.has(r.id)) as rail (rail.id)}
 						<dt class="text-muted-foreground">{t(`rail.${rail.id}` as MessageKey)}</dt>
 						<dd>{value(rail.measurement, 2, 'V')}</dd>
 					{/each}

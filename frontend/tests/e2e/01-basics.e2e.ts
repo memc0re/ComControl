@@ -27,6 +27,9 @@ test('dashboard shows live simulated values that update', async ({ page }) => {
 	const age = page.getByTestId('data-age');
 	await expect(age).toHaveText(/\d+ s/);
 	await expect(page.getByTestId('no-channels')).toBeVisible();
+	// the +3.3 V rail is not shown in the overview
+	await expect(page.getByText('+12 V')).toBeVisible();
+	await expect(page.getByText('+3.3 V')).toHaveCount(0);
 });
 
 test('language and theme switches', async ({ page }) => {
