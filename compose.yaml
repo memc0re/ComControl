@@ -5,8 +5,9 @@
 # and can open only nodes that the host's udev rule grants to COMCONTROL_GID.
 services:
   comcontrol:
-    build: .
-    image: comcontrol:local
+    # Published by the GitHub release workflow. To build locally instead:
+    #   docker compose -f compose.yaml -f compose.build.yaml up -d --build
+    image: ghcr.io/memc0re/comcontrol:latest
     restart: unless-stopped
     ports:
       - "${COMCONTROL_BIND:-127.0.0.1}:${COMCONTROL_PORT:-8080}:8080"

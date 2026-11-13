@@ -22,9 +22,28 @@ Set `COMCONTROL_USB_PATH`, `HIDRAW_MAJOR` and `COMCONTROL_GID` in `.env`. For LA
 
 ## Running
 
+`compose.yaml` uses the published image `ghcr.io/memc0re/comcontrol:latest`:
+
 ```sh
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 docker compose logs -f
+```
+
+### Published image
+
+The workflow `.github/workflows/docker-publish.yml` in the GitHub repository [memc0re/ComControl](https://github.com/memc0re/ComControl) builds the image from the `Dockerfile` and pushes it to the GitHub Container Registry when a release is published. Release tags must be semantic versions (e.g. `v0.2.0`); the image then gets the tags `0.2.0`, `0.2` and `latest` (pre-releases do not move `latest`).
+
+- Until the first release is published, no image exists; build locally (see below).
+- If the package is private on GitHub, log in first: `docker login ghcr.io` with a personal access token that has `read:packages`.
+- To pin a version instead of following `latest`, change the `image:` line in `compose.yaml`, e.g. to `ghcr.io/memc0re/comcontrol:0.2`.
+
+### Building locally
+
+`compose.build.yaml` replaces the published image with a build from the current checkout:
+
+```sh
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 
 Open `http://<host>:8080`, log in with `admin` / `admin` on the first start and change the password.
@@ -40,7 +59,8 @@ All persistent data (database with configuration, history, alarms, fail-safe sta
 
 ```sh
 docker compose down          # not "down -v": that deletes the data
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 ## Health
@@ -49,4 +69,4 @@ The image has a health check on `/api/v1/health`. It reports a reachable backend
 
 ## Verification status
 
-On the development setup (one PWM fan, one sensor) the container passed the hardware acceptance test (`COMCONTROL_HW_BASE_URL=http://127.0.0.1:8080 npm run test:hardware` against a fresh volume): live values in the UI, 5-second updates, fixed power and curve changes. Data persisted across container re-creation (changed password kept, stored settings re-applied on start). **Not verified** in the container: unplugging and reconnecting the USB cable, resume from standby.
+On the development setup (one PWM fan, one sensor) the locally built container passed the hardware acceptance test (`COMCONTROL_HW_BASE_URL=http://127.0.0.1:8080 npm run test:hardware` against a fresh volume): live values in the UI, 5-second updates, fixed power and curve changes. Data persisted across container re-creation (changed password kept, stored settings re-applied on start). **Not verified** in the container: unplugging and reconnecting the USB cable, resume from standby.
